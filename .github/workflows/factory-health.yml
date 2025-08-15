@@ -7,7 +7,6 @@ on:
 permissions:
   contents: read
   issues: write
-  projects: read
 
 jobs:
   health_digest:
