@@ -172,20 +172,18 @@ jobs:
               if (!item) {
                 console.log("Creating new Factory item...");
                 const createResult = await github.graphql(`
-                  mutation($projectId: ID!, $title: String!) {
-                    createProjectV2DraftIssue(input: {
-                      projectId: $projectId, 
-                      title: $title
+                  mutation($projectId: ID!) {
+                    addProjectV2DraftIssue(input: {
+                      projectId: $projectId
                     }) {
                       projectItem { id }
                     }
                   }
                 `, {
-                  projectId: project.id,
-                  title: repo
+                  projectId: project.id
                 });
                 
-                item = createResult.createProjectV2DraftIssue.projectItem;
+                item = createResult.addProjectV2DraftIssue.projectItem;
                 
                 // Set Repo field
                 await github.graphql(`
