@@ -9,13 +9,13 @@ permissions:
 
 jobs:
   sync:
-    if: contains(github.event.issue.labels.*.name, 'data-partner')  && false
+    if: contains(github.event.issue.labels.*.name, 'data-partner')
     runs-on: ubuntu-latest
     env:
       OWNER: ${{ github.repository_owner }}
       REPO: ${{ github.repository }}
       FACTORY_NUMBER: ${{ vars.FACTORY_PROJECT_NUMBER }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.ORG_ADMIN_TOKEN }}
     
     steps:
       - name: Check if FACTORY_PROJECT_NUMBER is set
@@ -73,7 +73,7 @@ jobs:
           PARTNER_COUNT: ${{ steps.partners.outputs.count }}
           PARTNER_CSV: ${{ steps.partners.outputs.csv }}
         with:
-          github-token: ${{ env.GH_TOKEN }}
+          github-token: ${{ secrets.ORG_ADMIN_TOKEN }}
           script: |
             const factoryNumber = parseInt(process.env.FACTORY_NUMBER, 10);
             const [owner, repo] = process.env.REPO.split("/");
