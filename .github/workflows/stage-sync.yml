@@ -1,0 +1,91 @@
+name: Stage Sync → Factory
+on:
+  issues:
+    types: [closed]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+  projects: write
+jobs:
+  sync:
+    if: contains(github.event.issue.labels.*.name, 'stage:')
+    runs-on: ubuntu-latest
+    env:
+      OWNER: ${{ github.repository_owner }}
+      REPO: ${{ github.repository }}
+      FACTORY_NUMBER: ${{ vars.FACTORY_PROJECT_NUMBER }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Derive stage name from label
+        id: stage
+        run: |
+          LABELS='${{ toJson(github.event.issue.labels) }}'
+          STAGE=$(echo "$LABELS" | jq -r '[ .[].name | select(startswith("stage:")) ][0] | split(":")[1]')
+          # "phenotype-development" -> "Phenotype development"
+          NAME=$(echo "$STAGE" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++){ $i=toupper(substr($i,1,1)) substr($i,2) }}1')
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+      - name: Upsert Stage on Factory item
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GH_TOKEN }}
+          script: |
+            const factoryNumber = parseInt(process.env.FACTORY_NUMBER, 10);
+            if (!factoryNumber) core.setFailed("FACTORY_PROJECT_NUMBER repo variable is required");
+            const [owner, repo] = process.env.REPO.split("/");
+            const stageName = "${{ steps.stage.outputs.name }}";
+            // Load Factory project (user-level)
+            const proj = await github.graphql(`
+              query($login:String!, $num:Int!){
+                user(login:$login){
+                  projectV2(number:$num){
+                    id
+                    fields(first:50){ nodes{
+                      ... on ProjectV2FieldCommon { id name }
+                      ... on ProjectV2SingleSelectField { id name options{ id name } }
+                    }}
+                    items(first:200){ nodes{
+                      id
+                      fieldValues(first:50){ nodes{
+                        ... on ProjectV2ItemFieldTextValue { text field { name id } }
+                      }}
+                    }}
+                  }
+                }
+              }`,
+              { login: owner, num: factoryNumber }
+            );
+            const project = proj.user.projectV2;
+            const fields = Object.fromEntries(project.fields.nodes.map(f => [f.name, f]));
+            const fStage = fields["Stage"];
+            const fRepo  = fields["Repo"];
+            if (!fStage || !fRepo) core.setFailed("Factory must have fields: Stage (single-select), Repo (text)");
+            // Find existing item by Repo text == full repo URL or owner/repo
+            const repoUrl = `https://github.com/${owner}/${repo}`;
+            let item = project.items.nodes.find(n =>
+              n.fieldValues.nodes.some(v => v.field?.name==="Repo" && (v.text===repoUrl || v.text===`${owner}/${repo}`))
+            );
+            // If missing, create a draft item then set Repo
+            if (!item){
+              const crt = await github.graphql(`
+                mutation($projectId:ID!, $title:String!){
+                  createProjectV2DraftIssue(input:{projectId:$projectId, title:$title}){ projectItem { id } }
+                }`, { projectId: project.id, title: `${repo}` }
+              );
+              item = crt.createProjectV2DraftIssue.projectItem;
+              // set Repo field
+              await github.graphql(`
+                mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $val:String!){
+                  updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{text:$val}}){ projectV2Item { id } }
+                }`, { projectId: project.id, itemId: item.id, fieldId: fRepo.id, val: repoUrl }
+              );
+            }
+            // Map stageName to option id
+            const opt = (fStage.options || []).find(o => o.name === stageName);
+            if (!opt) core.setFailed(`No Stage option named '${stageName}' in Factory`);
+            // Update Stage
+            await github.graphql(`
+              mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optId:String!){
+                updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{singleSelectOptionId:$optId}}){ projectV2Item { id } }
+              }`, { projectId: project.id, itemId: item.id, fieldId: fStage.id, optId: opt.id }
+            );

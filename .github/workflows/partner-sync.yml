@@ -1,0 +1,94 @@
+name: Partner Rollup → Factory
+on:
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled, assigned]
+permissions:
+  contents: read
+  issues: read
+  projects: write
+jobs:
+  sync:
+    if: contains(github.event.issue.labels.*.name, 'data-partner') || true
+    runs-on: ubuntu-latest
+    env:
+      OWNER: ${{ github.repository_owner }}
+      REPO: ${{ github.repository }}
+      FACTORY_NUMBER: ${{ vars.FACTORY_PROJECT_NUMBER }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Compute open partner list
+        id: partners
+        run: |
+          gh auth status || echo "Authed"
+          gh api repos/${{ env.REPO }}/issues --paginate -q '
+            map(select(.state=="open" and (.labels[].name? // "" | contains("data-partner")))) |
+            [ .[] | {title, number} ]' > partners.json
+          COUNT=$(jq 'length' partners.json)
+          CSV=$(jq -r '.[].title' partners.json | paste -sd "," -)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "csv=$CSV" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN }}
+
+      - name: Upsert Partner fields on Factory item
+        uses: actions/github-script@v7
+        env:
+          PARTNER_COUNT: ${{ steps.partners.outputs.count }}
+          PARTNER_CSV: ${{ steps.partners.outputs.csv }}
+        with:
+          github-token: ${{ env.GH_TOKEN }}
+          script: |
+            const factoryNumber = parseInt(process.env.FACTORY_NUMBER, 10);
+            if (!factoryNumber) core.setFailed("FACTORY_PROJECT_NUMBER repo variable is required");
+            const [owner, repo] = process.env.REPO.split("/");
+            const q = await github.graphql(`
+              query($login:String!, $num:Int!){
+                user(login:$login){
+                  projectV2(number:$num){
+                    id
+                    fields(first:50){ nodes{
+                      ... on ProjectV2FieldCommon { id name }
+                    }}
+                    items(first:200){ nodes{
+                      id
+                      fieldValues(first:50){ nodes{
+                        ... on ProjectV2ItemFieldTextValue { text field { name id } }
+                      }}
+                    }}
+                  }
+                }
+              }`, { login: owner, num: factoryNumber }
+            );
+            const proj = q.user.projectV2;
+            const fields = Object.fromEntries(proj.fields.nodes.map(f=>[f.name,f]));
+            const fRepo = fields["Repo"], fSites = fields["Partner Sites"], fCount = fields["Partner Count"];
+            if (!fRepo || !fSites || !fCount) core.setFailed("Factory must have fields: Repo (text), Partner Sites (text), Partner Count (number)");
+            const repoUrl = `https://github.com/${owner}/${repo}`;
+            let item = proj.items.nodes.find(n => n.fieldValues.nodes.some(v => v.field?.name==="Repo" && (v.text===repoUrl || v.text===`${owner}/${repo}`)));
+            if (!item){
+              const crt = await github.graphql(`
+                mutation($projectId:ID!, $title:String!){
+                  createProjectV2DraftIssue(input:{projectId:$projectId, title:$title}){ projectItem { id } }
+                }`, { projectId: proj.id, title: `${repo}` }
+              );
+              item = crt.createProjectV2DraftIssue.projectItem;
+              await github.graphql(`
+                mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $val:String!){
+                  updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{text:$val}}){ projectV2Item { id } }
+                }`, { projectId: proj.id, itemId: item.id, fieldId: fRepo.id, val: repoUrl }
+              );
+            }
+            // Update Partner Sites (text) & Partner Count (number)
+            await github.graphql(`
+              mutation UpdatePartners($projectId:ID!, $itemId:ID!, $sitesField:ID!, $sitesVal:String!, $countField:ID!, $countVal:Float!){
+                a:updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$sitesField, value:{text:$sitesVal}}){ projectV2Item { id } }
+                b:updateProjectV2ItemFieldValue(input:{projectId:$projectId, itemId:$itemId, fieldId:$countField, value:{number:$countVal}}){ projectV2Item { id } }
+              }`, {
+                projectId: proj.id,
+                itemId: item.id,
+                sitesField: fields["Partner Sites"].id,
+                sitesVal: process.env.PARTNER_CSV || "",
+                countField: fields["Partner Count"].id,
+                countVal: parseFloat(process.env.PARTNER_COUNT || "0")
+              }
+            );

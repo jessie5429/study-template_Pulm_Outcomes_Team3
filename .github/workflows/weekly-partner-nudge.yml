@@ -1,0 +1,79 @@
+name: Weekly Partner Nudge
+on:
+  schedule:
+    - cron: "0 * * * *"   # run hourly; we'll self-gate by TZ/day/hour
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NUDGE_DAY: ${{ vars.NUDGE_DAY || 'Mon' }}
+      NUDGE_HOUR_LOCAL: ${{ vars.NUDGE_HOUR_LOCAL || '9' }}
+      NUDGE_TZ: ${{ vars.NUDGE_TZ || 'America/New_York' }}
+      STALE_DAYS: ${{ vars.STALE_DAYS || '7' }}
+      STUDY_LEAD_GH: ${{ vars.STUDY_LEAD_GH || '' }}
+    steps:
+      - name: Decide if we should run at this hour in the configured TZ
+        id: gate
+        run: |
+          DAY=$(TZ="$NUDGE_TZ" date +%a)
+          HOUR=$(TZ="$NUDGE_TZ" date +%H)
+          WANT=$(printf "%02d" "$NUDGE_HOUR_LOCAL")
+          if [ "$DAY" != "$NUDGE_DAY" ] || [ "$HOUR" != "$WANT" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Exit if not the scheduled hour
+        if: steps.gate.outputs.skip == 'true'
+        run: echo "Not the scheduled window; skipping."
+
+      - name: Build stale partner list
+        if: steps.gate.outputs.skip == 'false'
+        id: stale
+        run: |
+          SECONDS_OLD=$(( 86400 * ${STALE_DAYS} ))
+          now=$(date -u +%s)
+          gh api repos/${{ github.repository }}/issues --paginate -q '
+            map(select(.state=="open" and (.labels[].name? // "" | contains("data-partner")))) |
+            [ .[] | {number, title, url, assignee:(.assignee.login // ""), updated:(.updated_at)} ]' > open.json
+          jq --argjson NOW "$now" --argjson AGE "$SECONDS_OLD" '
+            [ .[] | select((($NOW - ( (.updated | sub("Z$";"") | sub("\\.[0-9]+";"") | strptime("%Y-%m-%dT%H:%M:%S") | mktime ))) > $AGE)) ]' open.json > stale.json
+          COUNT=$(jq 'length' stale.json)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN }}
+
+      - name: Nudge assignees on each stale partner issue
+        if: steps.stale.outputs.count != '0'
+        run: |
+          jq -c '.[]' stale.json | while read row; do
+            num=$(echo "$row" | jq -r '.number')
+            who=$(echo "$row" | jq -r '.assignee // empty')
+            if [ -n "$who" ] && [ "$who" != "null" ]; then
+              gh issue comment "$num" --body "Hi @${who} — gentle nudge to progress this site. Thank you!"
+            else
+              gh issue comment "$num" --body "Gentle nudge to progress this site. (No assignee set yet.)"
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN }}
+
+      - name: Update/create Weekly Partner Nudge digest
+        if: steps.stale.outputs.count != '0'
+        run: |
+          echo "**Weekly Partner Follow-ups**" > body.md
+          if [ -n "${STUDY_LEAD_GH}" ]; then echo "@${STUDY_LEAD_GH#@}" >> body.md; fi
+          jq -r '.[] | "- [ ] [\(.title)](\(.url))"' stale.json >> body.md
+          id=$(gh issue list --search "Weekly Partner Nudge in:title" --json number --jq '.[0].number')
+          if [ -z "$id" ]; then
+            gh issue create --title "Weekly Partner Nudge" --body "$(cat body.md)"
+          else
+            gh issue comment "$id" --body "$(cat body.md)"
+          fi
+        env:
+          GH_TOKEN: ${{ env.GH_TOKEN }}
