@@ -94,10 +94,17 @@ jobs:
                       id
                       fields(first: 50) {
                         nodes {
-                          __typename
-                          ... on ProjectV2FieldCommon {
+                          ... on ProjectV2Field {
                             id
                             name
+                          }
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options {
+                              id
+                              name
+                            }
                           }
                         }
                       }
@@ -109,7 +116,19 @@ jobs:
                               ... on ProjectV2ItemFieldTextValue { 
                                 text 
                                 field { 
-                                  ... on ProjectV2FieldCommon { name id }
+                                  ... on ProjectV2Field { 
+                                    id
+                                    name 
+                                  }
+                                }
+                              }
+                              ... on ProjectV2ItemFieldNumberValue {
+                                number
+                                field {
+                                  ... on ProjectV2Field {
+                                    id
+                                    name
+                                  }
                                 }
                               }
                             }
