@@ -160,6 +160,14 @@ jobs:
                 core.setFailed("Factory must have fields: Study Repo (text), Partner Sites (text), Partner Count (number)");
                 return;
               }
+
+              console.log('Looking for existing Factory item...');
+              console.log('Repository URL:', repoUrl);
+              console.log('Available items:', project.items.nodes.length);
+              console.log('Sample item field values:', project.items.nodes[0]?.fieldValues?.nodes?.map(v => ({
+                field: v.field?.name,
+                text: v.text
+              })));
               
               // Find item by Repo field
               let item = project.items.nodes.find(n =>
