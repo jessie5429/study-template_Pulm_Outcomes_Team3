@@ -1,0 +1,198 @@
+name: Provision New Study
+on:
+  workflow_dispatch:
+    inputs:
+      study_title:
+        description: 'Study title'
+        required: true
+        type: string
+      lead:
+        description: 'Study lead name'
+        required: true
+        type: string
+      lead_site:
+        description: 'Lead institution'
+        required: true
+        type: string
+      partner_sites:
+        description: 'Partner sites (CSV list of ALL potential partners)'
+        required: true
+        type: string
+      target_date:
+        description: 'Target completion date (YYYY-MM-DD)'
+        required: true
+        type: string
+      admins:
+        description: 'Repo admins (GitHub usernames, comma-separated)'
+        required: true
+        type: string
+      maintainers:
+        description: 'Repo maintainers (GitHub usernames, comma-separated)'
+        required: false
+        type: string
+      partner_contacts_csv:
+        description: 'Partner contacts (optional: SiteName,@github,email,notes per line)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  projects: write
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.ORG_ADMIN_TOKEN }}
+      ORG_LOGIN: ${{ secrets.ORG_LOGIN }}
+      FACTORY_PROJECT_NUMBER: ${{ secrets.FACTORY_PROJECT_NUMBER }}
+      TEMPLATE_REPO: ${{ secrets.TEMPLATE_REPO }}
+    
+    steps:
+      - name: Validate inputs
+        run: |
+          if [[ -z "${{ github.event.inputs.study_title }}" ]]; then
+            echo "Study title is required"
+            exit 1
+          fi
+          
+      - name: Generate repo slug
+        id: slug
+        run: |
+          title="${{ github.event.inputs.study_title }}"
+          slug=$(echo "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+          repo_name="study-$slug"
+          echo "repo_name=$repo_name" >> $GITHUB_OUTPUT
+          echo "slug=$slug" >> $GITHUB_OUTPUT
+
+      - name: Create repository from template
+        id: create_repo
+        run: |
+          gh repo create "${{ env.ORG_LOGIN }}/${{ steps.slug.outputs.repo_name }}" \
+            --template="${{ env.TEMPLATE_REPO }}" \
+            --private \
+            --description="OHDSI Network Study: ${{ github.event.inputs.study_title }}"
+          
+          echo "repo_url=https://github.com/${{ env.ORG_LOGIN }}/${{ steps.slug.outputs.repo_name }}" >> $GITHUB_OUTPUT
+
+      - name: Create per-study project
+        id: create_project
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GH_TOKEN }}
+          script: |
+            const { data: repo } = await github.rest.repos.get({
+              owner: process.env.ORG_LOGIN,
+              repo: "${{ steps.slug.outputs.repo_name }}"
+            });
+            
+            // Create user-level project
+            const { data: project } = await github.rest.projects.createForUser({
+              owner: process.env.ORG_LOGIN,
+              name: "Study: ${{ github.event.inputs.study_title }}",
+              body: "Per-study project for tracking progress"
+            });
+            
+            // Link project to repository
+            await github.rest.projects.createCard({
+              column_id: project.columns[0].id,
+              content_id: repo.id,
+              content_type: 'Repository'
+            });
+            
+            core.setOutput('project_id', project.id);
+            core.setOutput('project_url', project.html_url);
+
+      - name: Create stage checklist issues
+        run: |
+          repo="${{ env.ORG_LOGIN }}/${{ steps.slug.outputs.repo_name }}"
+          
+          stages=("protocol-development" "data-diagnostics" "phenotype-development" "phenotype-evaluation" "analysis-specifications" "network-execution" "study-diagnostics" "evidence-synthesis" "results-evaluation")
+          
+          for stage in "${stages[@]}"; do
+            # Use the issue template to create each stage checklist
+            gh issue create \
+              --repo "$repo" \
+              --template "stage_${stage}.yml" \
+              --label "stage:${stage}"
+          done
+
+      - name: Create partner-site issues
+        run: |
+          repo="${{ env.ORG_LOGIN }}/${{ steps.slug.outputs.repo_name }}"
+          
+          # Parse partner sites from CSV input
+          IFS=',' read -ra SITES <<< "${{ github.event.inputs.partner_sites }}"
+          
+          for site in "${SITES[@]}"; do
+            site=$(echo "$site" | xargs) # trim whitespace
+            if [[ -n "$site" ]]; then
+              gh issue create \
+                --repo "$repo" \
+                --title "Data Partner: $site" \
+                --label "data-partner" \
+                --body "**Site:** $site
+                
+                **Status:** Potential
+                
+                Use this issue to track coordination with $site throughout the study lifecycle."
+            fi
+          done
+
+      - name: Set repository variables
+        run: |
+          repo="${{ env.ORG_LOGIN }}/${{ steps.slug.outputs.repo_name }}"
+          
+          gh variable set FACTORY_PROJECT_NUMBER --repo "$repo" --body "${{ env.FACTORY_PROJECT_NUMBER }}"
+          gh variable set NUDGE_DAY --repo "$repo" --body "Mon"
+          gh variable set NUDGE_HOUR_LOCAL --repo "$repo" --body "9"
+          gh variable set NUDGE_TZ --repo "$repo" --body "America/New_York"
+          gh variable set STALE_DAYS --repo "$repo" --body "7"
+          gh variable set STUDY_LEAD_GH --repo "$repo" --body "${{ github.event.inputs.lead }}"
+
+      - name: Set repository permissions
+        run: |
+          repo="${{ env.ORG_LOGIN }}/${{ steps.slug.outputs.repo_name }}"
+          
+          # Add admins
+          IFS=',' read -ra ADMINS <<< "${{ github.event.inputs.admins }}"
+          for admin in "${ADMINS[@]}"; do
+            admin=$(echo "$admin" | xargs | sed 's/^@//')
+            if [[ -n "$admin" ]]; then
+              gh api repos/"$repo"/collaborators/"$admin" -X PUT -f permission=admin
+            fi
+          done
+          
+          # Add maintainers
+          if [[ -n "${{ github.event.inputs.maintainers }}" ]]; then
+            IFS=',' read -ra MAINTAINERS <<< "${{ github.event.inputs.maintainers }}"
+            for maintainer in "${MAINTAINERS[@]}"; do
+              maintainer=$(echo "$maintainer" | xargs | sed 's/^@//')
+              if [[ -n "$maintainer" ]]; then
+                gh api repos/"$repo"/collaborators/"$maintainer" -X PUT -f permission=maintain
+              fi
+            done
+          fi
+
+      - name: Create Factory item
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.GH_TOKEN }}
+          script: |
+            // This would use GraphQL to create/update the Factory project item
+            // Implementation depends on your specific Factory project setup
+            console.log("Factory item creation would go here");
+            console.log("Repo: ${{ steps.create_repo.outputs.repo_url }}");
+            console.log("Stage: Protocol development");
+            console.log("Lead: ${{ github.event.inputs.lead }}");
+            console.log("Lead Site: ${{ github.event.inputs.lead_site }}");
+            console.log("Target Date: ${{ github.event.inputs.target_date }}");
+
+      - name: Summary
+        run: |
+          echo "✅ Study provisioned successfully!"
+          echo "📁 Repository: ${{ steps.create_repo.outputs.repo_url }}"
+          echo "📋 Project: ${{ steps.create_project.outputs.project_url }}"
+          echo "🏷️ Study: ${{ github.event.inputs.study_title }}"
+          echo "👨‍💼 Lead: ${{ github.event.inputs.lead }} (${{ github.event.inputs.lead_site }})"
