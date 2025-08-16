@@ -1,126 +1,67 @@
-# Study Title
+[Study title]
+=============
 
-<!-- Replace with your actual study title -->
+<img src="https://img.shields.io/badge/Study%20Status-Repo%20Created-lightgray.svg" alt="Study Status: Repo Created">
 
-## 🎯 Purpose
+- Analytics use case(s): **-**
+- Study type: **-**
+- Tags: **-**
+- Study lead: **-**
+- Study lead forums tag: **[[Lead tag]](https://forums.ohdsi.org/u/[Lead tag])**
+- Study start date: **-**
+- Study end date: **-**
+- Protocol: **-**
+- Publications: **-**
+- Results explorer: **-**
 
-<!-- Brief description of the research question and objectives -->
+[Description (single paragraph)]
 
-## 👥 Study Team
+--
+## Elements in the README template
 
-- **Lead**: [Lead Name] ([Lead Institution])
-- **Analyst**: [Analyst Name] ([Institution])
-- **Coordinator**: [Coordinator Name] ([Institution])
+| Element | Description |
+| ------- | ----------- |
+| [Study title]      | A meaningful title of the research project.            
+| Study status badge | A badge indicating the study status. See [below](#study-status) for valid options. |
+| Analytics use case | One or more analytics use cases included in the study (in a comma-separated list). See [below](#analytics-use-cases) for valid options. |
+| Study type | The type of study. See [below](#study-types) for valid options. |
+| Tags | Zero, one, or more additional keywords that can be used to filter the list of studies. The list of tags is not restricted, but be conservative in making up new tags. For example: `EHDEN` to identify studies that are part of the [EHDEN project](https://www.ehden.eu/). |
+| Study lead | The name of the study lead.|
+| Study lead forums tag | The OHDSI forums tag of the study lead, which can be used to contact the lead. It is recommended to make this a hyperlink to lead's forums profile |
+| Study start date | When did work on the study commence? This date typically indicates when development of the protocol was initiated. Format: [Month] [Day], [Year] (e.g. May 1, 2019)|
+| Study end date | When was the study completed? This typically indicates when the analyses were completed and the results have been collected. Do not enter future (planned) dates here. Format: [Month] [Day], [Year] (e.g. May 1, 2019)| 
+| Protocol | A hyperlink to the protocol. The protocol is expected to be a document in the study repository itself. | 
+| Publications | Zero, one or more hyperlinks to papers produced as part of the study (comma-separated). | 
+| Results explorer | A hyperlink to a web app (e.g. a Shiny app) where the results of the study can be explored. |
 
-## 📋 Protocol
+### Study Status
 
-<!-- Link to protocol document -->
-**Protocol**: [Link to protocol document]
+Choose one of the following options:
 
-**IRB Status**: [Lead-site IRB approval status and reference]
+| Badge             | Description                          |
+| ----------------- | ------------------------------------ |
+| <img src="https://img.shields.io/badge/Study%20Status-Repo%20Created-lightgray.svg" alt="Study Status: Repo Created"> | The study repository has just been created. Work has not yet commenced. | 
+| <img src="https://img.shields.io/badge/Study%20Status-Started-blue.svg" alt="Study Status: Started"> | A first commit was made (to something else than the README file). Work has commenced. |
+| <img src="https://img.shields.io/badge/Study%20Status-Design%20Finalized-brightgreen.svg" alt="Study Status: Design Finalized"> | The protocol and study code have been finalized. | 
+| <img src="https://img.shields.io/badge/Study%20Status-Results%20Available-yellow.svg" alt="Study Status: Results Available"> | The study results are publicly available, for example in a paper or results explorer app. | 
+| <img src="https://img.shields.io/badge/Study%20Status-Complete-orange.svg" alt="Study Status: Complete"> | The study is complete, no further dissemination planned. | 
+| <img src="https://img.shields.io/badge/Study%20Status-Suspended-red.svg" alt="Study Status: Suspended"> | The study has been suspended, and may or may not be continued at a later point in time. | 
 
-## 🏥 Data Partners
+Copy the relevant markdown code from [this page](badgesMarkdownCode.md), and paste it in your README file, just below the study title.
 
-<!-- This section is automatically updated by partner management workflows -->
+### Analytics Use Cases
 
-**Current Partner Count**: [Auto-updated by workflows]
+Choose one or more options from: 
 
-**Partner Sites**: [Auto-managed list]
+- `Characterization`
+- `Population-Level Estimation`, or
+- `Patient-Level Prediction` 
 
-### Working with Data Partners
+See [the Data Analytics Use Cases chapter](https://ohdsi.github.io/TheBookOfOhdsi/DataAnalyticsUseCases.html) for more details.
 
-1. **Adding a new partner**: Use the "Add Data Partner" issue form to create a trackable issue for each site
-2. **Partner status tracking**: Each partner has a dedicated issue that moves through: Potential → Invited → Diagnostics Sent → Diagnostics Returned → Package Executed → Results Uploaded
-3. **Weekly nudges**: Automated weekly reminders (default: Monday 9 AM ET) for stale partner issues
-4. **Configuring nudges**: Update repository variables if you need to change the schedule:
-   - `NUDGE_DAY`: Day of week (Mon, Tue, Wed, etc.)
-   - `NUDGE_HOUR_LOCAL`: Hour in 24-hour format (0-23)
-   - `NUDGE_TZ`: Timezone (e.g., "America/New_York")
+### Study types
 
-## 🏗️ Study Structure
+Can be either:
 
-### Cohorts & Phenotypes
-
-<!-- Links to ATLAS cohort definitions -->
-- **Target Cohort**: [ATLAS cohort link]
-- **Outcome Cohort**: [ATLAS cohort link]
-- **Additional Cohorts**: [Links as needed]
-
-### Analysis Plan
-
-<!-- Brief description or link to detailed analysis plan -->
-
-## 📊 Current Stage
-
-This study follows the standard OHDSI network study stages:
-
-1. ✅ Protocol development
-2. ⏳ Data diagnostics  
-3. ⏳ Phenotype development
-4. ⏳ Phenotype evaluation
-5. ⏳ Analysis specifications
-6. ⏳ Network execution
-7. ⏳ Study diagnostics
-8. ⏳ Evidence synthesis
-9. ⏳ Results evaluation
-
-**Current Stage**: [Auto-updated by workflows]
-
-### How to Advance Stages
-
-To move to the next stage, complete all items in the current stage checklist issue and close it. The study stage will automatically update in both this repository's project and the org-wide Factory view.
-
-## 🔄 Execution
-
-### For Study Leads
-
-1. **Track progress**: Use the project board to see all stage checklists and partner issues
-2. **Add partners**: Use issue forms to add new data partners
-3. **Stage advancement**: Close stage checklist issues when milestones are complete
-4. **Monitor partners**: Review weekly nudge summaries and respond to stale partners
-
-### For Data Partners
-
-1. **Find your site issue**: Look for an issue titled "Data Partner: [Your Site]"
-2. **Check assignments**: You should be assigned to your site's issue
-3. **Stay updated**: Comment on your issue with progress updates
-4. **Request help**: Use issue comments to ask questions or request assistance
-
-## 📁 Repository Structure
-
-```
-├── docs/               # Documentation
-│   └── STRATEGUS.md   # Strategus scaffold (optional)
-├── analysis/          # Analysis scripts and notebooks
-├── cohorts/           # Cohort definitions and exports
-├── results/           # Study results and outputs
-└── data-partners/     # Partner-specific instructions and templates
-```
-
-## 🔧 Technical Implementation
-
-### Analysis Environment
-
-This study uses standard OHDSI tools and follows OHDSI best practices:
-
-- **Database**: OMOP CDM v5.x or v6.x
-- **Platform**: [Specify: R/HADES, Python, SQL, etc.]
-- **Package Management**: [renv, conda, etc.]
-
-### Optional: Strategus Integration
-
-This repository can be enhanced with a [Strategus](https://ohdsi.github.io/Strategus/) scaffold for standardized execution across the network. See `docs/STRATEGUS.md` for details on adding Strategus support when it becomes stable.
-
-## 📞 Support
-
-- **Study questions**: Contact the study lead or create an issue
-- **Technical issues**: Tag the analyst team in issue comments
-- **OHDSI community**: Post in [OHDSI Forums](https://forums.ohdsi.org/)
-
-## 📜 License
-
-This study protocol and code are shared under [specify license] for use by the OHDSI community.
-
----
-
-**Factory Integration**: This study is tracked in the [OHDSI Factory](link-to-factory-project) portfolio for organizational visibility and coordination.
+- `Methods Research` if the study explores a methodological question, for example an evaluation of various propensity score approaches. 
+- `Clinical Application` if the study aims to answer a clinically relevant question, for example 'Does drug A cause outcome B?'.
