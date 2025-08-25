@@ -17,7 +17,7 @@
 [Description (single paragraph)]
 
 --
-## Elements in the README template
+# How to complete README template
 
 | Element | Description |
 | ------- | ----------- |
