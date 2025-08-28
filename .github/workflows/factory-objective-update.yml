@@ -9,16 +9,29 @@ on:
 permissions:
   contents: read
   issues: read
+  repository-projects: read
 
 jobs:
   update-factory-objective:
     runs-on: ubuntu-latest
     if: contains(github.event.issue.labels.*.name, 'status-tracking')
     steps:
+      - name: Check for required secret
+        run: |
+          if [ -z "${{ secrets.ORG_ADMIN_TOKEN }}" ]; then
+            echo "❌ ORG_ADMIN_TOKEN secret not configured"
+            echo "Please configure this secret in repository settings with a token that has:"
+            echo "- Read/write access to Factory repository issues"
+            echo "- Read/write access to organization projects"
+            exit 1
+          else
+            echo "✅ ORG_ADMIN_TOKEN secret found"
+          fi
+          
       - name: Update Factory Objective field
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.FACTORY_ORG_TOKEN }}
+          github-token: ${{ secrets.ORG_ADMIN_TOKEN }}
           script: |
             const issueTitle = "${{ github.event.issue.title }}";
             const issueUrl = "${{ github.event.issue.html_url }}";
