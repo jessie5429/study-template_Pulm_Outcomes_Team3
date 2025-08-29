@@ -4,12 +4,8 @@ name: Update Factory Objective
 # Updates the corresponding Factory issue's Objective field to the next milestone
 on:
   issues:
-    types: [closed, reopened, edited, labeled, unlabeled]
-  issue_comment:
-    types: [created, edited]
+    types: [closed, reopened]
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *"  # Daily at 6 AM UTC
 
 permissions:
   contents: read
@@ -266,6 +262,68 @@ jobs:
               
               console.log(`Found project: ${portfolioProject.title}`);
               
+              // Get the project item for the Factory issue first to check current objective
+              const projectItems = await github.graphql(`
+                query($projectId: ID!) {
+                  node(id: $projectId) {
+                    ... on ProjectV2 {
+                      items(first: 100) {
+                        nodes {
+                          id
+                          content {
+                            ... on Issue {
+                              id
+                              number
+                              title
+                            }
+                          }
+                          fieldValues(first: 20) {
+                            nodes {
+                              ... on ProjectV2ItemFieldSingleSelectValue {
+                                field {
+                                  ... on ProjectV2SingleSelectField {
+                                    name
+                                  }
+                                }
+                                name
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              `, {
+                projectId: portfolioProject.id
+              });
+              
+              const projectItem = projectItems.node.items.nodes.find(
+                item => item.content && item.content.id === issueNodeId
+              );
+              
+              if (!projectItem) {
+                console.log(`❌ Factory issue not found in project`);
+                console.log(`Issue node ID: ${issueNodeId}`);
+                console.log(`Looking for issue #${factoryIssueNumber}`);
+                return;
+              }
+              
+              // Get current objective value from project item
+              const currentObjectiveValue = projectItem.fieldValues.nodes.find(
+                fieldValue => fieldValue.field && fieldValue.field.name === 'Objective'
+              );
+              
+              const existingObjective = currentObjectiveValue ? currentObjectiveValue.name : null;
+              console.log(`Current objective in project: ${existingObjective}`);
+              console.log(`Calculated objective: ${currentObjective}`);
+              
+              // Skip if objective hasn't changed
+              if (existingObjective === currentObjective) {
+                console.log(`✅ Objective unchanged (${currentObjective}), skipping update and comment`);
+                return;
+              }
+              
               // Find the Objective field
               const objectiveField = portfolioProject.fields.nodes.find(
                 field => field.name === 'Objective'
@@ -288,40 +346,6 @@ jobs:
                 return;
               }
               
-              // Get the project item for the Factory issue
-              const projectItems = await github.graphql(`
-                query($projectId: ID!) {
-                  node(id: $projectId) {
-                    ... on ProjectV2 {
-                      items(first: 100) {
-                        nodes {
-                          id
-                          content {
-                            ... on Issue {
-                              id
-                              number
-                              title
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              `, {
-                projectId: portfolioProject.id
-              });
-              
-              const projectItem = projectItems.node.items.nodes.find(
-                item => item.content && item.content.id === issueNodeId
-              );
-              
-              if (!projectItem) {
-                console.log(`❌ Factory issue not found in project`);
-                console.log(`Issue node ID: ${issueNodeId}`);
-                console.log(`Looking for issue #${factoryIssueNumber}`);
-                return;
-              }
               
               // Update the Objective field
               await github.graphql(`
