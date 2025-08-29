@@ -1,0 +1,175 @@
+name: 'Manage Data Partners'
+description: 'Creates and manages Data Partner Issues from CSV file'
+inputs:
+  csv_path:
+    description: 'Path to data_partners.csv file'
+    required: true
+  org_token:
+    description: 'Organization admin token'
+    required: true
+
+outputs:
+  issues_created:
+    description: 'Number of new Data Partner Issues created'
+    value: ${{ steps.process_partners.outputs.issues_created }}
+  issues_updated:
+    description: 'Number of existing Data Partner Issues updated'
+    value: ${{ steps.process_partners.outputs.issues_updated }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Process Data Partners
+      id: process_partners
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.org_token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          const repoOwner = context.repo.owner;
+          const repoName = context.repo.repo;
+          const csvPath = "${{ inputs.csv_path }}";
+          
+          console.log(`Processing data partners for repository: ${repoOwner}/${repoName}`);
+          console.log(`CSV file path: ${csvPath}`);
+          
+          // Check if CSV file exists
+          if (!fs.existsSync(csvPath)) {
+            console.log(`❌ CSV file not found at: ${csvPath}`);
+            core.setFailed(`CSV file not found: ${csvPath}`);
+            return;
+          }
+          
+          // Read and parse CSV file
+          const csvContent = fs.readFileSync(csvPath, 'utf8');
+          const lines = csvContent.trim().split('\n');
+          
+          if (lines.length < 2) {
+            console.log(`⚠️  CSV file is empty or has no data rows`);
+            core.setOutput('issues_created', '0');
+            core.setOutput('issues_updated', '0');
+            return;
+          }
+          
+          // Parse header row (skip first line assuming it's headers)
+          const dataRows = lines.slice(1);
+          const partners = [];
+          
+          for (const line of dataRows) {
+            // Simple CSV parsing (handles basic cases, could be enhanced for complex CSV)
+            const columns = line.split(',').map(col => col.trim().replace(/"/g, ''));
+            
+            if (columns.length >= 3) {
+              partners.push({
+                site_name: columns[0],
+                contact_name: columns[1],
+                contact_github: columns[2]
+              });
+            }
+          }
+          
+          console.log(`Found ${partners.length} data partners in CSV`);
+          
+          if (partners.length === 0) {
+            console.log(`⚠️  No valid data partners found in CSV`);
+            core.setOutput('issues_created', '0');
+            core.setOutput('issues_updated', '0');
+            return;
+          }
+          
+          // Get existing issues with data-partner label
+          const existingIssues = await github.rest.issues.listForRepo({
+            owner: repoOwner,
+            repo: repoName,
+            labels: 'data-partner',
+            state: 'all'
+          });
+          
+          console.log(`Found ${existingIssues.data.length} existing data partner issues`);
+          
+          let issuesCreated = 0;
+          let issuesUpdated = 0;
+          
+          // Process each data partner
+          for (const partner of partners) {
+            const issueTitle = partner.site_name;
+            
+            // Check if issue already exists
+            const existingIssue = existingIssues.data.find(issue => 
+              issue.title === issueTitle
+            );
+            
+            const issueBody = [
+              `Contact: ${partner.contact_name}`,
+              `Contact GitHub Username: ${partner.contact_github}`,
+              `Days in Status: 0`,
+              '',
+              '---',
+              '',
+              '**Data Partner Information**',
+              `- **Site Name:** ${partner.site_name}`,
+              `- **Primary Contact:** ${partner.contact_name}`,
+              `- **GitHub Username:** ${partner.contact_github}`,
+              `- **Current Status:** Preparation`,
+              `- **Created:** ${new Date().toISOString().split('T')[0]}`,
+              '',
+              '**Status History**',
+              `- ${new Date().toISOString().split('T')[0]}: Created with status "Preparation"`,
+              '',
+              '---',
+              '',
+              '*This is a Data Partner tracking issue. Status changes will be monitored to track partnership progress.*'
+            ].join('\n');
+
+            if (existingIssue) {
+              // Update existing issue if needed
+              console.log(`📝 Updating existing issue: ${issueTitle}`);
+              
+              // Update assignee if changed
+              const currentAssignees = existingIssue.assignees.map(a => a.login);
+              if (!currentAssignees.includes(partner.contact_github)) {
+                await github.rest.issues.addAssignees({
+                  owner: repoOwner,
+                  repo: repoName,
+                  issue_number: existingIssue.number,
+                  assignees: [partner.contact_github]
+                });
+                console.log(`   ✅ Added assignee: ${partner.contact_github}`);
+                issuesUpdated++;
+              } else {
+                console.log(`   ℹ️  Issue already up to date`);
+              }
+              
+            } else {
+              // Create new issue
+              console.log(`🆕 Creating new issue: ${issueTitle}`);
+              
+              const issueResponse = await github.rest.issues.create({
+                owner: repoOwner,
+                repo: repoName,
+                title: issueTitle,
+                body: issueBody,
+                labels: ['data-partner', 'status:preparation'],
+                assignees: [partner.contact_github]
+              });
+              
+              console.log(`   ✅ Created issue: ${issueResponse.data.html_url}`);
+              
+              // Note: Project integration is handled by the study's existing project workflows
+              
+              issuesCreated++;
+            }
+            
+            // Brief delay between operations
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+          console.log(`✅ Data Partner processing completed`);
+          console.log(`   Created: ${issuesCreated} new issues`);
+          console.log(`   Updated: ${issuesUpdated} existing issues`);
+          
+          // Set outputs
+          core.setOutput('issues_created', issuesCreated.toString());
+          core.setOutput('issues_updated', issuesUpdated.toString());

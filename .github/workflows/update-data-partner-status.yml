@@ -1,0 +1,50 @@
+# Data Partner Status Update Workflow
+# Manual workflow to update data partner status
+
+name: Update Data Partner Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Data Partner Issue number'
+        required: true
+        type: string
+      new_status:
+        description: 'New status for the data partner'
+        required: true
+        type: choice
+        options:
+          - 'Preparation'
+          - 'Analysis'
+          - 'Results'
+
+# Minimal permissions
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  update-status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update Data Partner Status
+        id: update
+        uses: ./.github/actions/update-data-partner-status
+        with:
+          issue_number: ${{ inputs.issue_number }}
+          new_status: ${{ inputs.new_status }}
+          org_token: ${{ secrets.ORG_ADMIN_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## ✅ Data Partner Status Updated"
+          echo ""
+          echo "**Repository:** ${{ github.repository }}"
+          echo "**Issue:** #${{ inputs.issue_number }}"
+          echo "**New Status:** ${{ inputs.new_status }}"
+          echo "**Days in Previous Status:** ${{ steps.update.outputs.days_in_previous_status }}"
+          echo "**Status Updated:** ${{ steps.update.outputs.status_updated }}"
