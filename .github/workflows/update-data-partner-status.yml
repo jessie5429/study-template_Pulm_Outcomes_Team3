@@ -19,10 +19,11 @@ on:
           - 'Analysis'
           - 'Results'
 
-# Minimal permissions
+# Minimal permissions  
 permissions:
   contents: read
   issues: write
+  repository-projects: read
 
 jobs:
   update-status:

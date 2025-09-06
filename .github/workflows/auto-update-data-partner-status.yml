@@ -1,0 +1,185 @@
+# Auto Data Partner Status Update Workflow
+# Triggers when Data Partner Status field is changed in project
+# Per briefing/workflows/reusable.md and briefing/security/best-practices.md
+
+name: Auto Update Data Partner Status
+
+on:
+  projects_v2_item:
+    types: [edited]
+
+# Per briefing/actions/permissions.md - minimal permissions
+permissions:
+  contents: read
+  issues: write
+  repository-projects: read
+
+jobs:
+  auto-update-status:
+    runs-on: ubuntu-latest
+    if: github.event.projects_v2_item.content_type == 'Issue'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Process Project Field Change
+        id: process_change
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ORG_ADMIN_TOKEN }}
+          script: |
+            const projectItem = context.payload.projects_v2_item;
+            const changes = context.payload.changes;
+            
+            console.log('Project item edited event received');
+            console.log('Content type:', projectItem.content_type);
+            console.log('Item ID:', projectItem.id);
+            
+            // Check if this is a Data Partner Status field change
+            let statusFieldChanged = false;
+            let newStatus = null;
+            let oldStatus = null;
+            
+            if (changes && changes.field_value) {
+              // Get the field information to check if it's Data Partner Status
+              try {
+                const projectId = projectItem.project_id;
+                console.log('Project ID:', projectId);
+                
+                // Get project fields to find Data Partner Status field
+                const projectFields = await github.graphql(`
+                  query($projectId: ID!) {
+                    node(id: $projectId) {
+                      ... on ProjectV2 {
+                        fields(first: 20) {
+                          nodes {
+                            ... on ProjectV2Field {
+                              id
+                              name
+                            }
+                            ... on ProjectV2SingleSelectField {
+                              id
+                              name
+                              options {
+                                id
+                                name
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                `, {
+                  projectId: projectId
+                });
+                
+                // Find the Data Partner Status field
+                const statusField = projectFields.node.fields.nodes.find(field => 
+                  field.name === 'Data Partner Status'
+                );
+                
+                if (statusField) {
+                  console.log('Found Data Partner Status field:', statusField.id);
+                  
+                  // Check if the changed field is the Data Partner Status field
+                  if (changes.field_value && changes.field_value.field_id === statusField.id) {
+                    statusFieldChanged = true;
+                    
+                    // Get the option names for old and new values
+                    const getOptionName = (optionId) => {
+                      if (!optionId) return null;
+                      const option = statusField.options?.find(opt => opt.id === optionId);
+                      return option ? option.name : null;
+                    };
+                    
+                    oldStatus = getOptionName(changes.field_value.from?.singleSelectOptionId);
+                    newStatus = getOptionName(changes.field_value.to?.singleSelectOptionId);
+                    
+                    console.log('Status changed from:', oldStatus, 'to:', newStatus);
+                  }
+                }
+                
+              } catch (error) {
+                console.log('Error checking field changes:', error.message);
+              }
+            }
+            
+            if (!statusFieldChanged) {
+              console.log('This is not a Data Partner Status field change, skipping');
+              core.setOutput('should_update', 'false');
+              return;
+            }
+            
+            // Get the issue number from the project item content
+            const contentId = projectItem.content_id;
+            console.log('Content ID:', contentId);
+            
+            try {
+              // Get the issue information
+              const issueQuery = await github.graphql(`
+                query($contentId: ID!) {
+                  node(id: $contentId) {
+                    ... on Issue {
+                      number
+                      repository {
+                        name
+                        owner {
+                          login
+                        }
+                      }
+                      labels(first: 20) {
+                        nodes {
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              `, {
+                contentId: contentId
+              });
+              
+              const issue = issueQuery.node;
+              console.log('Issue number:', issue.number);
+              console.log('Repository:', issue.repository.owner.login + '/' + issue.repository.name);
+              
+              // Check if this is a data-partner issue
+              const isDataPartnerIssue = issue.labels.nodes.some(label => 
+                label.name === 'data-partner'
+              );
+              
+              if (!isDataPartnerIssue) {
+                console.log('Issue is not a data-partner issue, skipping');
+                core.setOutput('should_update', 'false');
+                return;
+              }
+              
+              console.log('✅ Valid data partner status change detected');
+              core.setOutput('should_update', 'true');
+              core.setOutput('issue_number', issue.number.toString());
+              core.setOutput('new_status', newStatus);
+              core.setOutput('repo_name', issue.repository.name);
+              
+            } catch (error) {
+              console.error('Error getting issue information:', error);
+              core.setOutput('should_update', 'false');
+            }
+
+      - name: Update Data Partner Status
+        if: steps.process_change.outputs.should_update == 'true'
+        uses: ./.github/actions/update-data-partner-status
+        with:
+          issue_number: ${{ steps.process_change.outputs.issue_number }}
+          new_status: ${{ steps.process_change.outputs.new_status }}
+          repo_name: ${{ steps.process_change.outputs.repo_name }}
+          org_token: ${{ secrets.ORG_ADMIN_TOKEN }}
+
+      - name: Summary
+        if: steps.process_change.outputs.should_update == 'true'
+        run: |
+          echo "## ✅ Auto Data Partner Status Updated"
+          echo ""
+          echo "**Repository:** ${{ steps.process_change.outputs.repo_name }}"
+          echo "**Issue:** #${{ steps.process_change.outputs.issue_number }}"
+          echo "**New Status:** ${{ steps.process_change.outputs.new_status }}"
