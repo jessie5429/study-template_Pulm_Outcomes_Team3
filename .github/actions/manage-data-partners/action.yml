@@ -134,6 +134,8 @@ runs:
             );
             
             const issueBody = [
+              `👋 @${partner.contact_github} - You've been added as the contact for this data partner.`,
+              '',
               `Contact: ${partner.contact_name}`,
               `Contact GitHub Username: ${partner.contact_github}`,
               `Days in Status: 0`,
@@ -143,7 +145,7 @@ runs:
               '**Data Partner Information**',
               `- **Site Name:** ${partner.site_name}`,
               `- **Primary Contact:** ${partner.contact_name}`,
-              `- **GitHub Username:** ${partner.contact_github}`,
+              `- **GitHub Username:** @${partner.contact_github}`,
               `- **Current Status:** Preparation`,
               `- **Created:** ${new Date().toISOString().split('T')[0]}`,
               '',
@@ -157,22 +159,8 @@ runs:
 
             if (existingIssue) {
               // Update existing issue if needed
-              console.log(`📝 Updating existing issue: ${issueTitle}`);
-              
-              // Update assignee if changed
-              const currentAssignees = existingIssue.assignees.map(a => a.login);
-              if (!currentAssignees.includes(partner.contact_github)) {
-                await github.rest.issues.addAssignees({
-                  owner: repoOwner,
-                  repo: repoName,
-                  issue_number: existingIssue.number,
-                  assignees: [partner.contact_github]
-                });
-                console.log(`   ✅ Added assignee: ${partner.contact_github}`);
-                issuesUpdated++;
-              } else {
-                console.log(`   ℹ️  Issue already up to date`);
-              }
+              console.log(`📝 Existing issue found: ${issueTitle}`);
+              console.log(`   ℹ️  Issue already exists, no updates needed`);
               
             } else {
               // Create new issue
@@ -183,8 +171,7 @@ runs:
                 repo: repoName,
                 title: issueTitle,
                 body: issueBody,
-                labels: ['data-partner', 'status:preparation'],
-                assignees: [partner.contact_github]
+                labels: ['data-partner', 'status:preparation']
               });
               
               console.log(`   ✅ Created issue: ${issueResponse.data.html_url}`);
