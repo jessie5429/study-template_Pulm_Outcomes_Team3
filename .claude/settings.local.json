@@ -5,7 +5,8 @@
       "Bash(yamllint:*)",
       "Bash(python3:*)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
