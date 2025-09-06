@@ -6,7 +6,9 @@
       "Bash(python3:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git push:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []
