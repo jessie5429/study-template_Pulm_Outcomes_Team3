@@ -1,7 +1,6 @@
-{{STUDY_TITLE}}
+{{Outcomes of Hospitalized Patients with Chronic Pulmonary Disease}}
 =============
-
-<img src="https://img.shields.io/badge/Study%20Status-Repo%20Created-lightgray.svg" alt="Study Status: Repo Created">
+| <img src="https://img.shields.io/badge/Study%20Status-Repo%20Created-lightgray.svg" alt="Study Status: Repo Created"> | The study repository has just been created. Work has not yet commenced. | 
 
 - Analytics use case(s): **-**
 - Study type: **-**
@@ -64,4 +63,5 @@ See [the Data Analytics Use Cases chapter](https://ohdsi.github.io/TheBookOfOhds
 Can be either:
 
 - `Methods Research` if the study explores a methodological question, for example an evaluation of various propensity score approaches. 
+
 - `Clinical Application` if the study aims to answer a clinically relevant question, for example 'Does drug A cause outcome B?'.
