@@ -1,20 +1,20 @@
-{{Outcomes of Hospitalized Patients with Chronic Pulmonary Disease}}
+{{Outcomes of Hospitalized Patients with COPD Exacerbation}}
 =============
 | <img src="https://img.shields.io/badge/Study%20Status-Repo%20Created-lightgray.svg" alt="Study Status: Repo Created"> | The study repository has just been created. Work has not yet commenced. | 
 
-- Analytics use case(s): **-**
-- Study type: **-**
-- Tags: **-**
-- Study lead: **{{LEAD_NAME}}**
+- Analytics use case(s): `Population-Level Estimation`
+- Study type: `Clinical Application`
+- Tags: 'COPD'
+- Study lead: **{{Isabel Pimenta}}**
 - Study lead forums tag: **[[Lead tag]](https://forums.ohdsi.org/u/[Lead tag])**
-- Study start date: **{{START_DATE}}**
+- Study start date: **{{October 17, 2025}}**
 - Study end date: **{{TARGET_DATE}}**
 - Protocol: **-**
 - Publications: **-**
 - Results explorer: **-**
 
 [Description (single paragraph)]
-
+at JHH, of patients admitted with COPD exacerbations, what are their clinical outcomes (specifically, in hospital Mortality, length of stay, and 30 day readmission rate?
 --
 # How to complete README template
 
@@ -65,3 +65,4 @@ Can be either:
 - `Methods Research` if the study explores a methodological question, for example an evaluation of various propensity score approaches. 
 
 - `Clinical Application` if the study aims to answer a clinically relevant question, for example 'Does drug A cause outcome B?'.
+
